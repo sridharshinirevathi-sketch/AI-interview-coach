@@ -94,6 +94,11 @@ async function fileToBase64(file: File) {
   return blobToBase64(file)
 }
 
+function normalizeDisplayScore(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) return null
+  return Math.min(100, Math.max(0, Number(value)))
+}
+
 function App() {
   const [view, setView] = useState<View>('overview')
   const [resumeName, setResumeName] = useState('')
@@ -101,11 +106,13 @@ function App() {
   const [resumeText, setResumeText] = useState(defaultResumeText)
   const [resumeScore, setResumeScore] = useState<number | null>(null)
   const [resumeAnalysis, setResumeAnalysis] = useState<GeminiResult | null>(null)
+  const displayResumeScore = normalizeDisplayScore(resumeScore)
   const [isLive, setIsLive] = useState(false)
   const [mediaError, setMediaError] = useState('')
   const [introTranscript, setIntroTranscript] = useState('')
   const [introScore, setIntroScore] = useState<number | null>(null)
   const [introAnalysis, setIntroAnalysis] = useState<GeminiResult | null>(null)
+  const displayIntroScore = normalizeDisplayScore(introScore)
   const [introSession, setIntroSession] = useState(false)
   const [introTimeLeft, setIntroTimeLeft] = useState(180)
   const [questionIndex, setQuestionIndex] = useState(0)
@@ -115,6 +122,7 @@ function App() {
   const [interviewTimeLeft, setInterviewTimeLeft] = useState(180)
   const [interviewScore, setInterviewScore] = useState<number | null>(null)
   const [interviewAnalysis, setInterviewAnalysis] = useState<GeminiResult | null>(null)
+  const displayInterviewScore = normalizeDisplayScore(interviewScore)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -391,12 +399,12 @@ function App() {
           </div>
         </header>
 
-        {view === 'overview' && <Overview onNavigate={setView} resumeName={resumeName} score={resumeScore} />}
+        {view === 'overview' && <Overview onNavigate={setView} resumeName={resumeName} score={displayResumeScore} />}
         {view === 'resume' && (
           <ResumeDetailedView
             resumeName={resumeName}
             uploaded={resumeUploaded}
-            score={resumeScore}
+            score={displayResumeScore}
             analysis={resumeAnalysis}
             isLoading={isAnalyzing}
             onUpload={(name, text) => {
@@ -412,7 +420,7 @@ function App() {
         {view === 'intro' && (
           <IntroView
             transcript={introTranscript}
-            score={introScore}
+            score={displayIntroScore}
             analysis={introAnalysis}
             isLive={isLive}
             mediaError={mediaError}
@@ -428,7 +436,7 @@ function App() {
           <InterviewView
             started={interviewStarted}
             index={questionIndex}
-            score={interviewScore}
+            score={displayInterviewScore}
             analysis={interviewAnalysis}
             isLive={isLive}
             mediaError={mediaError}

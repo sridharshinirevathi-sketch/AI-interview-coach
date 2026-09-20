@@ -4,7 +4,7 @@ import express from 'express'
 import { GoogleGenAI } from '@google/genai'
 
 const app = express()
-const port = 3001
+const port = process.env.PORT || 3001
 const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
 
 app.use(cors())
@@ -75,6 +75,6 @@ app.post('/api/analyze', async (request, response) => {
   }
 })
 
-app.listen(port, () => {
-  console.log(`Gemini API server running at http://localhost:${port}`)
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Gemini API server running on port ${port}`)
 })

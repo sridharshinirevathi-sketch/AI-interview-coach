@@ -67,7 +67,9 @@ type GeminiRequest = {
 }
 
 async function analyzeWithGemini(request: GeminiRequest) {
-  const response = await fetch('http://localhost:3001/api/analyze', {
+  // Render serves the frontend and Express API from the same domain.
+  const apiUrl = import.meta.env.VITE_API_URL || '/api/analyze'
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),

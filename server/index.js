@@ -1,4 +1,3 @@
-```javascript
 import 'dotenv/config'
 import cors from 'cors'
 import express from 'express'
@@ -30,9 +29,6 @@ const ai = process.env.GEMINI_API_KEY
 
 const normalizeText = (value = '') =>
   String(value).replace(/\s+/g, ' ').trim()
-
-const scoreRange = (value, min, max) =>
-  Math.min(max, Math.max(min, value))
 
 const clamp = (value, min, max) =>
   Math.min(max, Math.max(min, value))
@@ -761,4 +757,3 @@ app.listen(
     )
   }
 )
-```

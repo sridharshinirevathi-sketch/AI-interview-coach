@@ -1,32 +1,21 @@
-# React + TypeScript + Vite
+# AI Interview Coach
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A browser-based interview practice app with resume analysis, self-introduction practice, personal interview questions, stress interview questions, and session history.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Camera and microphone access requires `localhost` or HTTPS. Run `npm run build` to create the production build.
+
+## Features and privacy
+
+- Resume analysis supports PDF, DOCX, and TXT files up to 10 MB. Text extraction and ATS scoring run in the browser.
+- Self-introduction and interview practice use the browser's speech-recognition API. Browser vendors may process speech through their own online recognition service; this app does not send audio to Gemini.
+- Eye-contact feedback is an estimate based on MediaPipe face landmarks. The model and WASM runtime are downloaded from public CDNs; video frames are processed in the browser.
+- Voice-confidence feedback is based on microphone loudness, pronunciation feedback uses speech-recognition confidence, and grammar feedback is a lightweight English-only rules check. They are estimates, not professional assessments. Tamil grammar scoring is unavailable.
+- Completed session scores, transcripts, and answers are stored in this browser's local storage. Use **History → Clear history** to remove them.
+- Gemini is not configured and no API key is required.

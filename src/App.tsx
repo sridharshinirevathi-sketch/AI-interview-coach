@@ -47,6 +47,7 @@ function App() {
   const [savedResume] = useState(readSavedResume)
   const [resumeName, setResumeName] = useState(savedResume.name)
   const [resumeText, setResumeText] = useState(savedResume.text)
+  const [selectedResumeFile, setSelectedResumeFile] = useState<File | null>(null)
   const [resumeScore, setResumeScore] = useState<number | null>(savedResume.score)
   const [resumeAnalysis, setResumeAnalysis] = useState<AnalysisResult | null>(savedResume.analysis)
   const displayResumeScore = normalizeDisplayScore(resumeScore)
@@ -276,6 +277,8 @@ function App() {
 
   const handleResumeAnalyze = async (file?: File) => {
     setIsAnalyzing(true)
+    setAppError('')
+    setMediaError('')
     try {
       const text = file ? await extractResumeText(file) : resumeText
       const result = analyzeResume(text)
@@ -284,6 +287,7 @@ function App() {
       setResumeName(name)
       setResumeAnalysis(result)
       setResumeScore(Number(result.score ?? 0))
+      setSelectedResumeFile(null)
       try {
         localStorage.setItem(resumeStorageKey, JSON.stringify({ name, text, score: result.score, analysis: result }))
       } catch (error) {
@@ -461,18 +465,25 @@ function App() {
         {view === 'resume' && (
           <ResumeDetailedView
             resumeName={resumeName}
+            resumeText={resumeText}
+            selectedFile={selectedResumeFile}
             uploaded={Boolean(resumeName)}
             score={displayResumeScore}
             analysis={resumeAnalysis}
             isLoading={isAnalyzing}
             error={appError || mediaError}
-            onError={setMediaError}
-            onUpload={(name, text) => {
+            onError={(message) => {
+              setAppError(message)
+              setMediaError('')
+            }}
+            onUpload={(name, text, file) => {
               setResumeName(name)
               setResumeText(text || '')
+              setSelectedResumeFile(file || null)
               setResumeScore(null)
               setResumeAnalysis(null)
               setAppError('')
+              setMediaError('')
             }}
             onAnalyze={(file) => void handleResumeAnalyze(file)}
           />
@@ -590,8 +601,10 @@ function Overview({ onNavigate, resumeName, score }: { onNavigate: (view: View) 
   )
 }
 
-function ResumeDetailedView({ resumeName, uploaded, score, analysis, isLoading, error, onError, onUpload, onAnalyze }: {
+function ResumeDetailedView({ resumeName, resumeText, selectedFile, uploaded, score, analysis, isLoading, error, onError, onUpload, onAnalyze }: {
   resumeName: string
+  resumeText: string
+  selectedFile: File | null
   uploaded: boolean
   score: number | null
   analysis: AnalysisResult | null
@@ -602,7 +615,6 @@ function ResumeDetailedView({ resumeName, uploaded, score, analysis, isLoading, 
   onAnalyze: (file?: File) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   return (
     <div className="page">
@@ -610,7 +622,7 @@ function ResumeDetailedView({ resumeName, uploaded, score, analysis, isLoading, 
         eyebrow="STEP 01 · RESUME ATS"
         title="Your resume, made searchable."
         description="See how recruiters and applicant tracking systems read your experience."
-        action={<button className="secondary-button" onClick={() => inputRef.current?.click()}><Upload size={16} /> Upload new resume</button>}
+        action={<button className="secondary-button" onClick={() => inputRef.current?.click()} disabled={isLoading}><Upload size={16} /> Upload new resume</button>}
       />
 
       <input
@@ -618,34 +630,33 @@ function ResumeDetailedView({ resumeName, uploaded, score, analysis, isLoading, 
         type="file"
         accept=".pdf,.doc,.docx,.txt"
         hidden
+        disabled={isLoading}
         onChange={async (event) => {
           const file = event.target.files?.[0]
           if (!file) return
+          event.currentTarget.value = ''
           if (file.size > 10 * 1024 * 1024) {
             onError('Please choose a file smaller than 10 MB.')
-            event.target.value = ''
             return
           }
           const text = file.name.toLowerCase().endsWith('.txt') ? await file.text() : ''
-          setSelectedFile(file)
           onUpload(file.name, text, file)
-          onAnalyze(file)
         }}
       />
 
       <section className="resume-layout">
         <div className="analysis-main">
           {error && <p className="inline-error" role="alert">{error}</p>}
-          <div className="upload-strip" onClick={() => inputRef.current?.click()}>
+          <div className="upload-strip" onClick={() => !isLoading && inputRef.current?.click()}>
             <div className="file-icon"><FileText size={20} /></div>
             <div>
               <strong>{uploaded ? resumeName : 'Upload your resume'}</strong>
               <span>{uploaded ? `${resumeName.split('.').pop()?.toUpperCase() || 'FILE'} · Ready for local analysis` : 'PDF, DOCX, or TXT up to 10 MB'}</span>
             </div>
-            <button className="round-action" aria-label="Replace resume"><RotateCcw size={16} /></button>
+            <button className="round-action" aria-label="Replace resume" disabled={isLoading}><RotateCcw size={16} /></button>
           </div>
 
-          <button className="view-score-button" onClick={() => onAnalyze(selectedFile || undefined)} disabled={(!selectedFile && !uploaded) || isLoading}>
+          <button className="view-score-button" onClick={() => onAnalyze(selectedFile || undefined)} disabled={(!selectedFile && !resumeText.trim()) || isLoading}>
             <BarChart3 size={17} /> {isLoading ? 'Analyzing locally...' : score === null ? 'View ATS score' : 'Recalculate ATS score'} <ChevronRight size={16} />
           </button>
 

@@ -18,6 +18,24 @@ type SessionHistory = {
 }
 
 const historyStorageKey = 'ai-interview-coach.history.v1'
+const resumeStorageKey = 'ai-interview-coach.resume.v1'
+
+function readSavedResume() {
+  try {
+    const saved = localStorage.getItem(resumeStorageKey)
+    if (!saved) return { name: '', text: '', score: null as number | null, analysis: null as AnalysisResult | null }
+    const parsed = JSON.parse(saved) as { name?: string; text?: string; score?: number; analysis?: AnalysisResult }
+    return {
+      name: parsed.name || '',
+      text: parsed.text || '',
+      score: typeof parsed.score === 'number' ? parsed.score : null,
+      analysis: parsed.analysis || null,
+    }
+  } catch (error) {
+    console.error('Unable to load saved resume analysis:', error)
+    return { name: '', text: '', score: null, analysis: null }
+  }
+}
 
 function normalizeDisplayScore(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return null
@@ -26,10 +44,11 @@ function normalizeDisplayScore(value: number | null | undefined) {
 
 function App() {
   const [view, setView] = useState<View>('overview')
-  const [resumeName, setResumeName] = useState('')
-  const [resumeText, setResumeText] = useState('')
-  const [resumeScore, setResumeScore] = useState<number | null>(null)
-  const [resumeAnalysis, setResumeAnalysis] = useState<AnalysisResult | null>(null)
+  const [savedResume] = useState(readSavedResume)
+  const [resumeName, setResumeName] = useState(savedResume.name)
+  const [resumeText, setResumeText] = useState(savedResume.text)
+  const [resumeScore, setResumeScore] = useState<number | null>(savedResume.score)
+  const [resumeAnalysis, setResumeAnalysis] = useState<AnalysisResult | null>(savedResume.analysis)
   const displayResumeScore = normalizeDisplayScore(resumeScore)
   const [isLive, setIsLive] = useState(false)
   const [mediaError, setMediaError] = useState('')
@@ -170,12 +189,13 @@ function App() {
         setVoiceLevel(Math.min(95, Math.max(35, Math.round(((mean - 0.008) / 0.06) * 60 + 35))))
       }, 250)
 
-      try {
-        eyeTrackerRef.current = await startEyeContactTracking(videoRef.current!, setEyeContact)
-      } catch (error) {
+      void startEyeContactTracking(videoRef.current!, setEyeContact).then((tracker) => {
+        if (streamRef.current === stream) eyeTrackerRef.current = tracker
+        else tracker.stop()
+      }).catch((error: unknown) => {
         console.error('Eye-contact estimation could not start:', error)
         setMediaError('Camera is active, but eye-contact estimation could not load. Check your internet connection and try again.')
-      }
+      })
       return true
     } catch (error) {
       await stopMedia()
@@ -217,13 +237,17 @@ function App() {
     setVoiceLevel(null)
     setEyeContact(null)
     const started = await startMedia()
-    if (started) {
-      setInterviewStarted(true)
-      startSpeech('interview')
-    }
+    setInterviewStarted(true)
+    if (started) startSpeech('interview')
   }
 
   const stopInterview = async () => {
+    const answer = interviewAnswerRef.current.trim()
+    if (answer) {
+      setInterviewAnswers((answers) => [...answers, answer])
+      interviewAnswerRef.current = ''
+      setInterviewAnswer('')
+    }
     setInterviewStarted(false)
     await stopMedia()
   }
@@ -255,10 +279,18 @@ function App() {
     try {
       const text = file ? await extractResumeText(file) : resumeText
       const result = analyzeResume(text)
+      const name = file?.name || resumeName || 'Resume'
       setResumeText(text)
+      setResumeName(name)
       setResumeAnalysis(result)
       setResumeScore(Number(result.score ?? 0))
-      addHistory({ type: 'Resume analysis', detail: resumeName || file?.name || 'Resume', score: result.score, metrics: result })
+      try {
+        localStorage.setItem(resumeStorageKey, JSON.stringify({ name, text, score: result.score, analysis: result }))
+      } catch (error) {
+        console.error('Unable to save resume analysis:', error)
+        setAppError('Resume analysis completed, but could not be saved in this browser.')
+      }
+      addHistory({ type: 'Resume analysis', detail: name, score: result.score, metrics: result })
     } catch (error) {
       console.error('Resume analysis failed:', error)
       setAppError(error instanceof Error ? error.message : 'Resume analysis failed.')
@@ -433,13 +465,14 @@ function App() {
             score={displayResumeScore}
             analysis={resumeAnalysis}
             isLoading={isAnalyzing}
-            error={mediaError}
+            error={appError || mediaError}
             onError={setMediaError}
             onUpload={(name, text) => {
               setResumeName(name)
               setResumeText(text || '')
               setResumeScore(null)
               setResumeAnalysis(null)
+              setAppError('')
             }}
             onAnalyze={(file) => void handleResumeAnalyze(file)}
           />
@@ -566,7 +599,7 @@ function ResumeDetailedView({ resumeName, uploaded, score, analysis, isLoading, 
   error: string
   onError: (message: string) => void
   onUpload: (name: string, text?: string, file?: File) => void
-  onAnalyze: (file: File) => void
+  onAnalyze: (file?: File) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -612,8 +645,8 @@ function ResumeDetailedView({ resumeName, uploaded, score, analysis, isLoading, 
             <button className="round-action" aria-label="Replace resume"><RotateCcw size={16} /></button>
           </div>
 
-          <button className="view-score-button" onClick={() => selectedFile && onAnalyze(selectedFile)} disabled={!selectedFile || isLoading}>
-            <BarChart3 size={17} /> {isLoading ? 'Analyzing locally...' : 'View ATS score'} <ChevronRight size={16} />
+          <button className="view-score-button" onClick={() => onAnalyze(selectedFile || undefined)} disabled={(!selectedFile && !uploaded) || isLoading}>
+            <BarChart3 size={17} /> {isLoading ? 'Analyzing locally...' : score === null ? 'View ATS score' : 'Recalculate ATS score'} <ChevronRight size={16} />
           </button>
 
           <div className="ats-panel">
@@ -807,7 +840,7 @@ function InterviewView({ mode, onModeChange, started, index, questions, score, a
   speechLanguage: string
   onSpeechLanguageChange: (language: string) => void
 }) {
-  const canStart = mode === 'stress' || canPersonalize
+  const canStart = true
   return (
     <div className="page">
       <PageHeader
@@ -821,7 +854,7 @@ function InterviewView({ mode, onModeChange, started, index, questions, score, a
         <button className={mode === 'personal' ? 'selected' : ''} onClick={() => onModeChange('personal')} disabled={started}>Personal interview · 15</button>
         <button className={mode === 'stress' ? 'selected' : ''} onClick={() => onModeChange('stress')} disabled={started}>Stress interview · 10</button>
       </div>
-      {!canStart && <p className="setup-notice">Analyze a resume and complete your self-introduction first to personalize these questions.</p>}
+      {mode === 'personal' && !canPersonalize && <p className="setup-notice">You can start now; upload a resume and complete your self-introduction to personalize more questions.</p>}
       <section className="interview-layout">
         <div>
           <div className="question-card">
@@ -844,7 +877,7 @@ function InterviewView({ mode, onModeChange, started, index, questions, score, a
             <button className="primary-button" onClick={onStart} disabled={started || !canStart}><Play size={15} fill="currentColor" /> Start interview</button>
             <button className="stop-button" onClick={onStop} disabled={!started}><Square size={14} fill="currentColor" /> Stop</button>
             <button className="primary-button" onClick={onNext} disabled={!started || !answer.trim()}>{index === questions.length - 1 ? 'Finish interview' : 'Next question'} <ChevronRight size={15} /></button>
-            <button className="secondary-button" onClick={onScore} disabled={started || answersCount !== questions.length || isLoading}><BarChart3 size={16} /> {isLoading ? 'Scoring...' : 'View score'}</button>
+            <button className="secondary-button" onClick={onScore} disabled={started || answersCount === 0 || isLoading}><BarChart3 size={16} /> {isLoading ? 'Scoring...' : 'View score'}</button>
           </div>
           <label className="language-picker">Speech language
             <select value={speechLanguage} onChange={(event) => onSpeechLanguageChange(event.target.value)} disabled={started}>

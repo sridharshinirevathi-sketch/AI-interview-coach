@@ -1,3 +1,5 @@
+import pdfWorkerUrl from '../node_modules/pdf-parse/dist/pdf-parse/web/pdf.worker.mjs?url'
+
 export type AnalysisResult = {
   score: number
   mistakes?: string[]
@@ -26,6 +28,7 @@ export async function extractResumeText(file: File) {
 
   if (fileName.endsWith('.pdf') || file.type.includes('pdf')) {
     const { PDFParse } = await import('pdf-parse')
+    PDFParse.setWorker(pdfWorkerUrl)
     const parser = new PDFParse({ data: new Uint8Array(await file.arrayBuffer()) })
     try {
       return normalizeText((await parser.getText()).text)
